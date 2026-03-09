@@ -36,7 +36,7 @@ function getLinterConfig(): Linter.Config[] {
     {
       languageOptions: {
         parserOptions: {
-          projectService: true,
+          project: './tsconfig.json',
           tsconfigRootDir: fixturesDir,
         },
       },
