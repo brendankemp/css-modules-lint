@@ -1,5 +1,9 @@
 # ts-css-modules-lint
 
+[![CI](https://github.com/brendankemp/ts-css-modules-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/brendankemp/ts-css-modules-lint/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/ts-css-modules-lint)](https://www.npmjs.com/package/ts-css-modules-lint)
+
 TypeScript language service plugin for CSS Modules: cross-file unused class detection, autocomplete, and go-to-definition.
 
 ## Features
