@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import path from 'path';
 import fs from 'fs';
 import { Linter } from 'eslint';
@@ -6,12 +6,20 @@ import tseslint from 'typescript-eslint';
 import plugin from '../src/eslint-plugin';
 import { writeFixture as _writeFixture } from './test-helpers';
 
-const fixturesDir = path.join(__dirname, 'fixtures', 'eslint');
-const writeFixture = (name: string, content: string) => _writeFixture(fixturesDir, name, content);
+const baseFixturesDir = path.join(__dirname, 'fixtures', 'eslint');
+let testCounter = 0;
 
-function writeTsconfig(): string {
-  const tsconfigPath = path.join(fixturesDir, 'tsconfig.json');
-  fs.writeFileSync(tsconfigPath, JSON.stringify({
+/**
+ * Each test gets a unique subdirectory so typescript-eslint's project cache
+ * never serves stale programs from a previous test.
+ */
+function setupTestDir(): { dir: string; writeFixture: (name: string, content: string) => string } {
+  const dir = path.join(baseFixturesDir, `t${testCounter++}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+
+  // Write tsconfig for this test directory
+  fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({
     compilerOptions: {
       target: 'ES2020',
       module: 'ES2022',
@@ -22,14 +30,18 @@ function writeTsconfig(): string {
     },
     include: ['./**/*.ts', './**/*.tsx'],
   }));
-  return tsconfigPath;
+
+  return {
+    dir,
+    writeFixture: (name: string, content: string) => _writeFixture(dir, name, content),
+  };
 }
 
 function createLinter() {
   return new Linter({ configType: 'flat' });
 }
 
-function getLinterConfig(): Linter.Config[] {
+function getLinterConfig(tsconfigRootDir: string): Linter.Config[] {
   return [
     // @ts-expect-error - typescript-eslint flat configs work at runtime
     ...tseslint.configs.recommended,
@@ -37,7 +49,7 @@ function getLinterConfig(): Linter.Config[] {
       languageOptions: {
         parserOptions: {
           project: './tsconfig.json',
-          tsconfigRootDir: fixturesDir,
+          tsconfigRootDir,
         },
       },
     },
@@ -54,12 +66,6 @@ function getLinterConfig(): Linter.Config[] {
 }
 
 describe('eslint-plugin', () => {
-  beforeEach(() => {
-    fs.rmSync(fixturesDir, { recursive: true, force: true });
-    fs.mkdirSync(fixturesDir, { recursive: true });
-    writeTsconfig();
-  });
-
   describe('plugin structure', () => {
     it('exports rules', () => {
       expect(plugin.rules).toHaveProperty('undefined-class');
@@ -82,6 +88,7 @@ describe('eslint-plugin', () => {
 
   describe('undefined-class rule', () => {
     it('reports undefined class access', () => {
+      const { dir, writeFixture } = setupTestDir();
       writeFixture('undef.module.scss', `.container { display: flex; }`);
       const tsFile = writeFixture('undef.tsx', [
         `import styles from './undef.module.scss';`,
@@ -91,7 +98,7 @@ describe('eslint-plugin', () => {
 
       const linter = createLinter();
       const code = fs.readFileSync(tsFile, 'utf-8');
-      const messages = linter.verify(code, getLinterConfig(), { filename: tsFile });
+      const messages = linter.verify(code, getLinterConfig(dir), { filename: tsFile });
 
       const errors = messages.filter(m => m.ruleId === 'css-modules/undefined-class');
       expect(errors).toHaveLength(1);
@@ -100,6 +107,7 @@ describe('eslint-plugin', () => {
     });
 
     it('does not report defined class access', () => {
+      const { dir, writeFixture } = setupTestDir();
       writeFixture('defined.module.scss', `.container { display: flex; }\n.header { color: red; }`);
       const tsFile = writeFixture('defined.tsx', [
         `import styles from './defined.module.scss';`,
@@ -109,13 +117,14 @@ describe('eslint-plugin', () => {
 
       const linter = createLinter();
       const code = fs.readFileSync(tsFile, 'utf-8');
-      const messages = linter.verify(code, getLinterConfig(), { filename: tsFile });
+      const messages = linter.verify(code, getLinterConfig(dir), { filename: tsFile });
 
       const errors = messages.filter(m => m.ruleId === 'css-modules/undefined-class');
       expect(errors).toHaveLength(0);
     });
 
     it('returns no errors for files without CSS module imports', () => {
+      const { dir, writeFixture } = setupTestDir();
       const tsFile = writeFixture('no-css.tsx', [
         `const x = 'hello';`,
         `export default x;`,
@@ -123,7 +132,7 @@ describe('eslint-plugin', () => {
 
       const linter = createLinter();
       const code = fs.readFileSync(tsFile, 'utf-8');
-      const messages = linter.verify(code, getLinterConfig(), { filename: tsFile });
+      const messages = linter.verify(code, getLinterConfig(dir), { filename: tsFile });
 
       const errors = messages.filter(m => m.ruleId === 'css-modules/undefined-class');
       expect(errors).toHaveLength(0);
@@ -132,6 +141,7 @@ describe('eslint-plugin', () => {
 
   describe('unused-class rule', () => {
     it('reports unused classes', () => {
+      const { dir, writeFixture } = setupTestDir();
       writeFixture('unused.module.scss', `.used { display: flex; }\n.unused { color: red; }`);
       const tsFile = writeFixture('unused.tsx', [
         `import styles from './unused.module.scss';`,
@@ -140,7 +150,7 @@ describe('eslint-plugin', () => {
 
       const linter = createLinter();
       const code = fs.readFileSync(tsFile, 'utf-8');
-      const messages = linter.verify(code, getLinterConfig(), { filename: tsFile });
+      const messages = linter.verify(code, getLinterConfig(dir), { filename: tsFile });
 
       const warnings = messages.filter(m => m.ruleId === 'css-modules/unused-class');
       expect(warnings).toHaveLength(1);
@@ -149,6 +159,7 @@ describe('eslint-plugin', () => {
     });
 
     it('does not report when all classes are used', () => {
+      const { dir, writeFixture } = setupTestDir();
       writeFixture('all-used.module.scss', `.foo { display: flex; }\n.bar { color: red; }`);
       const tsFile = writeFixture('all-used.tsx', [
         `import styles from './all-used.module.scss';`,
@@ -158,7 +169,7 @@ describe('eslint-plugin', () => {
 
       const linter = createLinter();
       const code = fs.readFileSync(tsFile, 'utf-8');
-      const messages = linter.verify(code, getLinterConfig(), { filename: tsFile });
+      const messages = linter.verify(code, getLinterConfig(dir), { filename: tsFile });
 
       const warnings = messages.filter(m => m.ruleId === 'css-modules/unused-class');
       expect(warnings).toHaveLength(0);
@@ -167,6 +178,7 @@ describe('eslint-plugin', () => {
 
   describe('no program available', () => {
     it('warns when parserServices has no program', () => {
+      const { dir, writeFixture } = setupTestDir();
       writeFixture('no-prog.module.scss', `.container { display: flex; }`);
       const tsFile = writeFixture('no-prog.tsx', [
         `import styles from './no-prog.module.scss';`,

@@ -3,25 +3,34 @@ import type { Linter, Rule } from 'eslint';
 import { UsageTracker } from './usage-tracker';
 import { getCssModuleDiagnostics } from './diagnostics';
 
-// Per-run state — reset when the program instance changes (new ESLint run or watch cycle)
-let tracker = new UsageTracker();
-let diagnosticsCache = new Map<string, ts.Diagnostic[]>();
-let reportedUnused = new Set<string>();
-let lastProgram: ts.Program | null = null;
+interface ProgramState {
+  tracker: UsageTracker;
+  diagnostics: Map<string, ts.Diagnostic[]>;
+  reportedUnused: Set<string>;
+}
+
+// WeakMap ensures state is automatically GC'd when the program instance is replaced.
+const programState = new WeakMap<ts.Program, ProgramState>();
+
+function getState(program: ts.Program): ProgramState {
+  let state = programState.get(program);
+  if (!state) {
+    state = {
+      tracker: new UsageTracker(),
+      diagnostics: new Map(),
+      reportedUnused: new Set(),
+    };
+    programState.set(program, state);
+  }
+  return state;
+}
 
 function getDiagnostics(filename: string, program: ts.Program): ts.Diagnostic[] {
-  // Reset caches when the program changes (new ESLint run or file change)
-  if (program !== lastProgram) {
-    tracker = new UsageTracker();
-    diagnosticsCache = new Map();
-    reportedUnused = new Set();
-    lastProgram = program;
-  }
-
-  const cached = diagnosticsCache.get(filename);
+  const state = getState(program);
+  const cached = state.diagnostics.get(filename);
   if (cached) return cached;
-  const diags = getCssModuleDiagnostics(ts as any, filename, program, tracker);
-  diagnosticsCache.set(filename, diags);
+  const diags = getCssModuleDiagnostics(ts as any, filename, program, state.tracker);
+  state.diagnostics.set(filename, diags);
   return diags;
 }
 
@@ -90,6 +99,7 @@ const unusedClass: Rule.RuleModule = {
           context.report({ message: NO_PROGRAM_MESSAGE, loc: { line: 1, column: 0 } });
           return;
         }
+        const state = getState(program);
         const diagnostics = getDiagnostics(context.filename, program);
 
         for (const diag of diagnostics) {
@@ -100,8 +110,8 @@ const unusedClass: Rule.RuleModule = {
             ? diag.messageText
             : ts.flattenDiagnosticMessageText(diag.messageText, ' ');
 
-          if (reportedUnused.has(message)) continue;
-          reportedUnused.add(message);
+          if (state.reportedUnused.has(message)) continue;
+          state.reportedUnused.add(message);
 
           const startPos = diag.file.getLineAndCharacterOfPosition(diag.start);
           const endPos = diag.file.getLineAndCharacterOfPosition(diag.start + diag.length);
