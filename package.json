@@ -1,7 +1,7 @@
 {
-  "name": "ts-css-modules-lint",
+  "name": "css-modules-lint",
   "version": "1.0.0",
-  "description": "TypeScript-enabled checking of CSS Modules: cross-file unused class detection, autocomplete, and go-to-definition",
+  "description": "Lint, autocomplete, and generate types for CSS Modules. Includes a TypeScript language service plugin, CLI, Vite plugin, and ESLint plugin.",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
   "exports": {
@@ -60,7 +60,7 @@
     }
   },
   "dependencies": {
-    "magicast": "^0.5.2",
+    "jsonc-parser": "^3.3.1",
     "postcss": "^8.5.8",
     "postcss-less": "^6.0.0",
     "postcss-scss": "^4.0.9",
