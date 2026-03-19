@@ -43,27 +43,32 @@ describe('cli-init', () => {
 
       const config = JSON.parse(readFile('tsconfig.json'));
       expect(config.compilerOptions.plugins).toEqual([
-        { name: 'ts-css-modules-lint' },
+        { name: 'css-modules-lint' },
       ]);
     });
 
-    it('adds plugin to tsconfig.app.json', async () => {
+    it('adds plugin to tsconfig.app.json when it exists', async () => {
+      writeFile('tsconfig.json', JSON.stringify({ references: [] }));
       writeFile('tsconfig.app.json', JSON.stringify({
         compilerOptions: { target: 'ES2020' },
       }));
 
       await init();
 
-      const config = JSON.parse(readFile('tsconfig.app.json'));
-      expect(config.compilerOptions.plugins).toEqual([
-        { name: 'ts-css-modules-lint' },
+      // Should add to tsconfig.app.json
+      const appConfig = JSON.parse(readFile('tsconfig.app.json'));
+      expect(appConfig.compilerOptions.plugins).toEqual([
+        { name: 'css-modules-lint' },
       ]);
+      // Should NOT modify tsconfig.json
+      const baseConfig = JSON.parse(readFile('tsconfig.json'));
+      expect(baseConfig.compilerOptions).toBeUndefined();
     });
 
     it('does not duplicate plugin if already present', async () => {
       writeFile('tsconfig.json', JSON.stringify({
         compilerOptions: {
-          plugins: [{ name: 'ts-css-modules-lint' }],
+          plugins: [{ name: 'css-modules-lint' }],
         },
       }));
 
@@ -73,6 +78,35 @@ describe('cli-init', () => {
       expect(config.compilerOptions.plugins).toHaveLength(1);
     });
 
+    it('appends alongside existing plugins', async () => {
+      writeFile('tsconfig.json', JSON.stringify({
+        compilerOptions: {
+          plugins: [{ name: 'other-plugin' }],
+        },
+      }));
+
+      await init();
+
+      const config = JSON.parse(readFile('tsconfig.json'));
+      expect(config.compilerOptions.plugins).toEqual([
+        { name: 'other-plugin' },
+        { name: 'css-modules-lint' },
+      ]);
+    });
+
+    it('handles trailing commas', async () => {
+      const tsconfig = '{\n  "compilerOptions": {\n    "strict": true,\n  },\n}';
+      writeFile('tsconfig.json', tsconfig);
+
+      await init();
+
+      const { parse } = await import('jsonc-parser');
+      const config = parse(readFile('tsconfig.json'));
+      expect(config.compilerOptions.plugins).toEqual([
+        { name: 'css-modules-lint' },
+      ]);
+    });
+
     it('creates plugins array if missing', async () => {
       writeFile('tsconfig.json', JSON.stringify({}));
 
@@ -80,8 +114,63 @@ describe('cli-init', () => {
 
       const config = JSON.parse(readFile('tsconfig.json'));
       expect(config.compilerOptions.plugins).toEqual([
-        { name: 'ts-css-modules-lint' },
+        { name: 'css-modules-lint' },
       ]);
+    });
+
+    it('respects 4-space indentation', async () => {
+      const tsconfig = '{\n    "compilerOptions": {\n        "strict": true\n    }\n}';
+      writeFile('tsconfig.json', tsconfig);
+
+      await init();
+
+      const content = readFile('tsconfig.json');
+      // Verify 4-space indent was preserved for inserted lines
+      expect(content).toMatch(/^ {8}"plugins"/m);
+      const config = JSON.parse(content);
+      expect(config.compilerOptions.plugins).toEqual([
+        { name: 'css-modules-lint' },
+      ]);
+    });
+
+    it('respects tab indentation', async () => {
+      const tsconfig = '{\n\t"compilerOptions": {\n\t\t"strict": true\n\t}\n}';
+      writeFile('tsconfig.json', tsconfig);
+
+      await init();
+
+      const content = readFile('tsconfig.json');
+      // Verify tab indent was preserved for inserted lines
+      expect(content).toMatch(/^\t\t"plugins"/m);
+      const config = JSON.parse(content);
+      expect(config.compilerOptions.plugins).toEqual([
+        { name: 'css-modules-lint' },
+      ]);
+    });
+
+    it('handles tsconfig with path aliases containing /* patterns', async () => {
+      const tsconfig = `{
+  "compilerOptions": {
+    /* Path aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "strict": true
+  }
+}`;
+      writeFile('tsconfig.json', tsconfig);
+
+      await init();
+
+      const content = readFile('tsconfig.json');
+      const { parse } = await import('jsonc-parser');
+      const config = parse(content);
+      expect(config.compilerOptions.plugins).toEqual([
+        { name: 'css-modules-lint' },
+      ]);
+      // Verify paths were preserved
+      expect(config.compilerOptions.paths['@/*']).toEqual(['src/*']);
     });
   });
 
@@ -128,7 +217,7 @@ describe('cli-init', () => {
       await init();
 
       const content = readFile('vite.config.ts');
-      expect(content).toContain('ts-css-modules-lint/vite');
+      expect(content).toContain('css-modules-lint/vite');
       expect(content).toContain('cssModulesDts');
     });
 
@@ -143,10 +232,67 @@ describe('cli-init', () => {
       );
     });
 
+    it('adds plugin to function-form vite config', async () => {
+      writeFile('vite.config.ts', [
+        'import { defineConfig } from "vite";',
+        'import react from "@vitejs/plugin-react";',
+        '',
+        'export default defineConfig(({ mode }) => {',
+        '  return {',
+        '    plugins: [react()],',
+        '  };',
+        '});',
+      ].join('\n'));
+
+      await init();
+
+      const content = readFile('vite.config.ts');
+      expect(content).toContain('import cssModulesDts from "css-modules-lint/vite"');
+      expect(content).toContain('cssModulesDts()');
+      // Verify it's in the plugins array
+      expect(content).toMatch(/plugins\s*:\s*\[cssModulesDts\(\)/);
+    });
+
+    it('adds plugin to multiline plugins array', async () => {
+      writeFile('vite.config.ts', [
+        'import { defineConfig } from "vite";',
+        'import react from "@vitejs/plugin-react";',
+        '',
+        'export default defineConfig({',
+        '  plugins: [',
+        '    react(),',
+        '  ],',
+        '});',
+      ].join('\n'));
+
+      await init();
+
+      const content = readFile('vite.config.ts');
+      expect(content).toContain('cssModulesDts()');
+      // Should be on its own line with matching indent
+      expect(content).toMatch(/plugins: \[\n\s+cssModulesDts\(\),\n\s+react\(\)/);
+    });
+
+    it('adds plugin to plain object export', async () => {
+      writeFile('vite.config.ts', [
+        'import react from "@vitejs/plugin-react";',
+        '',
+        'export default {',
+        '  plugins: [react()],',
+        '};',
+      ].join('\n'));
+
+      await init();
+
+      const content = readFile('vite.config.ts');
+      expect(content).toContain('import cssModulesDts from "css-modules-lint/vite"');
+      expect(content).toMatch(/plugins\s*:\s*\[cssModulesDts\(\)/);
+    });
+
     it('does not duplicate if already configured', async () => {
       writeFile('vite.config.ts', [
         'import { defineConfig } from "vite";',
-        'import cssModulesDts from "ts-css-modules-lint/vite";',
+        'import cssModulesDts from "css-modules-lint/vite";',
         'export default defineConfig({ plugins: [cssModulesDts()] });',
       ].join('\n'));
 
@@ -155,6 +301,36 @@ describe('cli-init', () => {
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('already has the Vite plugin')
       );
+    });
+  });
+
+  describe('idempotency', () => {
+    it('running init twice produces the same result', async () => {
+      writeFile('tsconfig.json', JSON.stringify({
+        compilerOptions: { strict: true },
+      }));
+      writeFile('vite.config.ts', [
+        'import { defineConfig } from "vite";',
+        'import react from "@vitejs/plugin-react";',
+        'export default defineConfig({ plugins: [react()] });',
+      ].join('\n'));
+      writeFile('.gitignore', 'node_modules\n');
+
+      await init();
+      const firstRun = {
+        tsconfig: readFile('tsconfig.json'),
+        vite: readFile('vite.config.ts'),
+        gitignore: readFile('.gitignore'),
+      };
+
+      await init();
+      const secondRun = {
+        tsconfig: readFile('tsconfig.json'),
+        vite: readFile('vite.config.ts'),
+        gitignore: readFile('.gitignore'),
+      };
+
+      expect(secondRun).toEqual(firstRun);
     });
   });
 });

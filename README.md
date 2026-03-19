@@ -1,10 +1,10 @@
-# ts-css-modules-lint
+# css-modules-lint
 
-[![CI](https://github.com/brendankemp/ts-css-modules-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/brendankemp/ts-css-modules-lint/actions/workflows/ci.yml)
+[![CI](https://github.com/brendankemp/css-modules-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/brendankemp/css-modules-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![npm](https://img.shields.io/npm/v/ts-css-modules-lint)](https://www.npmjs.com/package/ts-css-modules-lint)
+[![npm](https://img.shields.io/npm/v/css-modules-lint)](https://www.npmjs.com/package/css-modules-lint)
 
-TypeScript language service plugin for CSS Modules: cross-file unused class detection, autocomplete, and go-to-definition.
+Lint, autocomplete, and generate types for CSS Modules. Includes a TypeScript language service plugin (diagnostics, go-to-definition, completions), a CLI for CI linting and auto-fixing, and a Vite plugin for `.d.ts` generation.
 
 ## Features
 
@@ -14,19 +14,103 @@ TypeScript language service plugin for CSS Modules: cross-file unused class dete
 - CLI for CI linting and auto-fixing
 - `.d.ts` generation for build-time type checking of CSS module class names
 - Vite plugin for automatic `.d.ts` generation during dev and build
+- ESLint plugin with `undefined-class` and `unused-class` rules
 - Supports `.module.scss`, `.module.css`, and `.module.less`
+
+## Requirements
+
+- TypeScript >= 5.0.0
+- ESLint >= 9.0.0 (optional, for ESLint plugin)
+- Vite >= 4.0.0 (optional, for Vite plugin)
+- Node.js >= 20
 
 ## Quick Setup
 
 ```sh
-npm install -D ts-css-modules-lint
+npm install -D css-modules-lint
 npx css-modules-lint init
 ```
 
 The `init` command configures:
 - TypeScript plugin in `tsconfig.json` / `tsconfig.app.json`
-- Vite plugin in `vite.config.ts` (if present)
+- Vite plugin in `vite.config.{ts,js,mts,mjs,cts,cjs}` (if present)
 - `.gitignore` patterns for generated `.d.ts` files
+
+To enable eslint rules, add to your `eslint.config.js`:
+
+```js
+import cssModulesLint from "css-modules-lint/eslint";
+
+export default [...cssModulesLint.configs.recommended];
+```
+
+## Manual Setup
+
+If you prefer to configure manually instead of using `npx css-modules-lint init`:
+
+### 1. Install
+
+```sh
+npm install -D css-modules-lint
+```
+
+### 2. TypeScript plugin
+
+Add to `tsconfig.json` (or `tsconfig.app.json`):
+
+```json
+{
+  "compilerOptions": {
+    "plugins": [
+      { "name": "css-modules-lint" }
+    ]
+  }
+}
+```
+
+Then restart your editor's TypeScript language server.
+
+### 3. Vite plugin (optional)
+
+```ts
+// vite.config.ts
+import cssModulesDts from "css-modules-lint/vite";
+
+export default defineConfig({
+  plugins: [cssModulesDts()],
+});
+```
+
+### 4. ESLint plugin (optional)
+
+```js
+// eslint.config.js
+import cssModulesLint from "css-modules-lint/eslint";
+
+export default [...cssModulesLint.configs.recommended];
+```
+
+### 5. `.gitignore`
+
+Add generated `.d.ts` files to `.gitignore`:
+
+```
+*.module.scss.d.ts
+*.module.css.d.ts
+*.module.less.d.ts
+```
+
+### 6. CI lint script (optional)
+
+Add to `package.json`:
+
+```json
+{
+  "scripts": {
+    "lint:css": "css-modules-lint check"
+  }
+}
+```
 
 ## CLI
 
@@ -49,11 +133,14 @@ npx css-modules-lint generate --watch
 
 ## Components
 
-This package provides three independent components that can be used together or separately:
+This package provides four independent components that can be used together or separately:
 
 - **TypeScript Language Service Plugin** — Real-time editor diagnostics, autocomplete, and go-to-definition for CSS module classes
 - **CLI** — CI-friendly linting (`check`), auto-fixing (`check --fix`), and `.d.ts` generation (`generate`)
 - **Vite Plugin** — Automatic `.d.ts` generation integrated into Vite's dev server and build pipeline
+- **ESLint Plugin** — `undefined-class` and `unused-class` rules for flat config (ESLint >= 9)
+
+> **Note on overlap:** If you use `.d.ts` generation (via the Vite plugin or `generate` CLI), TypeScript already reports undefined class references as type errors. In that case the ESLint `undefined-class` rule and the CLI's undefined-class check are redundant — their main added value is **unused class detection**, which `.d.ts` generation does not provide. The TS language service plugin, by contrast, works without `.d.ts` files and provides diagnostics, autocomplete, and go-to-definition directly in your editor.
 
 ### TypeScript Language Service Plugin
 
@@ -69,7 +156,7 @@ Add to `tsconfig.json`:
 {
   "compilerOptions": {
     "plugins": [
-      { "name": "ts-css-modules-lint" }
+      { "name": "css-modules-lint" }
     ]
   }
 }
@@ -95,7 +182,7 @@ Integrates `.d.ts` generation into Vite's dev server and build pipeline, so you 
 
 ```ts
 // vite.config.ts
-import cssModulesDts from 'ts-css-modules-lint/vite';
+import cssModulesDts from 'css-modules-lint/vite';
 
 export default defineConfig({
   plugins: [cssModulesDts(), react()],
@@ -128,6 +215,26 @@ Benchmarked against a 305-module project:
 | Dev server startup | None (runs in background via `setImmediate`) |
 | Cold build | ~18ms (writes `.d.ts` files from Vite's CSS processing, no extra parsing) |
 | Warm build (no changes) | ~3ms (diff check, no writes) |
+
+### ESLint Plugin
+
+Provides two rules for CSS module class usage, compatible with ESLint flat config (>= 9.0.0).
+
+#### Setup
+
+```js
+// eslint.config.js
+import cssModulesLint from "css-modules-lint/eslint";
+
+export default [...cssModulesLint.configs.recommended];
+```
+
+#### Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `css-modules-lint/undefined-class` | error | Disallow using CSS class names not defined in the imported style file |
+| `css-modules-lint/unused-class` | warn | Warn when CSS classes defined in a style file are not used by any importer |
 
 ## License
 
