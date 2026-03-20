@@ -133,4 +133,4 @@ function findTokenAtPosition(tsModule: typeof ts, sourceFile: ts.SourceFile, pos
   return find(sourceFile);
 }
 
-export = init;
+export default init;

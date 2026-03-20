@@ -15,7 +15,7 @@ export interface CssModulesDtsOptions {
   verbose?: boolean;
 }
 
-export default function cssModulesDts(options: CssModulesDtsOptions = {}): VitePlugin {
+function cssModulesDts(options: CssModulesDtsOptions = {}): VitePlugin {
   const { verbose = false } = options;
   let command: string = 'serve';
   const log = verbose ? (msg: string) => console.log(`[css-modules-dts] ${msg}`) : () => {};
@@ -81,3 +81,5 @@ export default function cssModulesDts(options: CssModulesDtsOptions = {}): ViteP
     },
   };
 }
+
+export default cssModulesDts;

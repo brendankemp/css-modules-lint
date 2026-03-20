@@ -132,7 +132,7 @@ const unusedClass: Rule.RuleModule = {
 const plugin = {
   meta: {
     name: 'eslint-plugin-css-modules',
-    version: '1.0.0',
+    version: '1.0.1',
   },
   rules: {
     'undefined-class': undefinedClass,
@@ -145,10 +145,15 @@ plugin.configs.recommended = {
   plugins: {
     'css-modules': plugin as any,
   },
+  languageOptions: {
+    parserOptions: {
+      projectService: true,
+    },
+  },
   rules: {
     'css-modules/undefined-class': 'error',
     'css-modules/unused-class': 'warn',
   },
 };
 
-export = plugin;
+export default plugin;

@@ -78,6 +78,9 @@ describe('eslint-plugin', () => {
         'css-modules/undefined-class': 'error',
         'css-modules/unused-class': 'warn',
       });
+      expect(plugin.configs.recommended.languageOptions).toEqual({
+        parserOptions: { projectService: true },
+      });
     });
 
     it('has correct rule meta', () => {

@@ -184,7 +184,7 @@ export async function init(): Promise<void> {
   console.log("  1. Restart your editor's language server");
   console.log("  2. To enable eslint rules, add to your eslint.config.js:");
   console.log('     import cssModulesLint from "css-modules-lint/eslint";');
-  console.log("     export default [...cssModulesLint.configs.recommended];");
+  console.log("     export default [cssModulesLint.configs.recommended];");
   console.log("  3. Add to your CI/lint scripts:");
   console.log('     "lint:css": "css-modules-lint check"');
 }

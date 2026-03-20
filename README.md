@@ -41,7 +41,7 @@ To enable eslint rules, add to your `eslint.config.js`:
 ```js
 import cssModulesLint from "css-modules-lint/eslint";
 
-export default [...cssModulesLint.configs.recommended];
+export default [cssModulesLint.configs.recommended];
 ```
 
 ## Manual Setup
@@ -87,7 +87,7 @@ export default defineConfig({
 // eslint.config.js
 import cssModulesLint from "css-modules-lint/eslint";
 
-export default [...cssModulesLint.configs.recommended];
+export default [cssModulesLint.configs.recommended];
 ```
 
 ### 5. `.gitignore`
@@ -226,7 +226,7 @@ Provides two rules for CSS module class usage, compatible with ESLint flat confi
 // eslint.config.js
 import cssModulesLint from "css-modules-lint/eslint";
 
-export default [...cssModulesLint.configs.recommended];
+export default [cssModulesLint.configs.recommended];
 ```
 
 #### Rules

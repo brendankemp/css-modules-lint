@@ -270,6 +270,38 @@ describe('removeClasses', () => {
     expect(result).not.toContain('&-child');
   });
 
+  it('removes compound nested selector (&.className)', () => {
+    const file = writeFixture('remove-compound.module.scss',
+      `.parent {\n  color: red;\n  &.orange { color: orange; }\n  &.active { color: green; }\n}\n`);
+    const changed = removeClasses(file, new Set(['orange']));
+    expect(changed).toBe(true);
+    const result = fs.readFileSync(file, 'utf-8');
+    expect(result).toContain('.parent');
+    expect(result).toContain('&.active');
+    expect(result).not.toContain('&.orange');
+  });
+
+  it('removes multiple compound nested selectors', () => {
+    const file = writeFixture('remove-compound-multi.module.scss',
+      `.parent {\n  color: red;\n  &.orange { color: orange; }\n  &.red { color: red; }\n}\n`);
+    const changed = removeClasses(file, new Set(['orange', 'red']));
+    expect(changed).toBe(true);
+    const result = fs.readFileSync(file, 'utf-8');
+    expect(result).toContain('.parent');
+    expect(result).not.toContain('&.orange');
+    expect(result).not.toContain('&.red');
+  });
+
+  it('removes only matching selector from compound multi-selector rule', () => {
+    const file = writeFixture('remove-compound-partial.module.scss',
+      `.parent {\n  &.orange, &.active { color: orange; }\n}\n`);
+    const changed = removeClasses(file, new Set(['orange']));
+    expect(changed).toBe(true);
+    const result = fs.readFileSync(file, 'utf-8');
+    expect(result).toContain('&.active');
+    expect(result).not.toMatch(/&\.orange/);
+  });
+
   it('returns false when no classes match', () => {
     const file = writeFixture('remove-none.module.scss',
       `.keep { color: red; }\n`);

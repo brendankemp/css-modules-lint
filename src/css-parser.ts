@@ -345,18 +345,19 @@ export function removeClasses(filePath: string, classNames: Set<string>): boolea
     changed = true;
   }
 
-  // Second pass: remove top-level selectors matching classNames
+  // Second pass: remove selectors matching classNames (top-level and nested compound)
   ast.walkRules((rule) => {
     if (rule.selector.includes(':export')) return;
-    if (rule.selector.includes('&')) return; // nested rules handled above
+
+    // Pure suffix rules (&-child) were handled by first pass — skip if no class nodes to parse
+    const hasAmpersand = rule.selector.includes('&');
+    if (hasAmpersand && !/&\./.test(rule.selector)) return;
 
     const transformed = selectorParser((selectors) => {
       selectors.each((selector) => {
         const classes: string[] = [];
         selector.walkClasses((classNode) => { classes.push(classNode.value); });
 
-        // Remove this selector if ALL its classes are in the removal set
-        // and it has at least one class
         if (classes.length > 0 && classes.every(cls => classNames.has(cls))) {
           selector.remove();
         }
